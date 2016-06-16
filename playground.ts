@@ -153,8 +153,9 @@ let boundary: {[id: string]: number[][]} = {};
 let selectedNodeId: string = null;
 // Plot the heatmap.
 let xDomain: [number, number] = [-6, 6];
+let yDomain: [number, number] = [-6, 6];
 let heatMap =
-    new HeatMap(300, DENSITY, xDomain, xDomain, d3.select("#heatmap"),
+    new HeatMap(300, DENSITY, xDomain, yDomain, d3.select("#heatmap"),
         {showAxes: true});
 let linkWidthScale = d3.scale.linear()
   .domain([0, 5])
@@ -197,6 +198,10 @@ function makeGUI() {
   d3.select("#data-regen-button").on("click", () => {
     generateData();
   });
+
+  d3.select("#data-load-button").on("change", handleLoadData, false);
+  d3.select("#data-column").on("dragover", handleDragOver, false);
+  d3.select("#data-column").on("drop", handleLoadData, false);
 
   let dataThumbnails = d3.selectAll("canvas[data-dataset]");
   dataThumbnails.on("click", function() {
@@ -957,6 +962,7 @@ function drawDatasetThumbnails() {
     });
     d3.select(canvas.parentNode).style("display", null);
   }
+
   d3.selectAll(".dataset").style("display", "none");
 
   if (state.problem == Problem.CLASSIFICATION) {
@@ -1036,6 +1042,95 @@ function generateData(firstTime = false) {
   testData = data.slice(splitIndex);
   heatMap.updatePoints(trainData);
   heatMap.updateTestPoints(state.showTestData ? testData : []);
+}
+
+function handleDragOver() {
+  this.stopPropagation();
+  this.preventDefault();
+  this.dataTransfer.dropEffect = 'copy';
+}
+
+function readData() {
+  var data = this.result.split('\n');
+  let points: Example2D[] = [];
+  trainData = [];
+  let minpoint: Example2D = {x: Number.MAX_VALUE,
+                            y: Number.MAX_VALUE,
+                            label: Number.MAX_VALUE};
+  let maxpoint: Example2D = {x: Number.MIN_VALUE,
+                            y: Number.MIN_VALUE,
+                            label: Number.MIN_VALUE};
+
+  for (var l in data) {
+    if (data[l] == "" && trainData.length == 0) {
+      trainData = points;
+      points = [];
+    }
+    var elms = data[l].split(" ");
+    if (elms.length == 3) {
+      let point: Example2D = {x: parseFloat(elms[0]), y: parseFloat(elms[1]), label: parseFloat(elms[2])};
+      points.push(point);
+
+      minpoint.x = Math.min(minpoint.x, point.x);
+      minpoint.y = Math.min(minpoint.y, point.y);
+      minpoint.label = Math.min(minpoint.label, point.label);
+      maxpoint.x = Math.max(maxpoint.x, point.x);
+      maxpoint.y = Math.max(maxpoint.y, point.y);
+      maxpoint.label = Math.max(maxpoint.label, point.label);
+    }
+  }
+  testData = points;
+  xDomain = [Math.min(xDomain[0],minpoint.x), Math.max(xDomain[1],maxpoint.x)];
+  yDomain = [Math.min(yDomain[0],minpoint.y), Math.max(yDomain[1],maxpoint.y)];
+  d3.select("#heatmap").select("*").remove();
+  heatMap =
+      new HeatMap(300, DENSITY, xDomain, yDomain, d3.select("#heatmap"),
+          {showAxes: true});
+  heatMap.updatePoints(trainData);
+  heatMap.updateTestPoints(state.showTestData ? testData : []);
+  let dataThumbnails = d3.selectAll("canvas[data-dataset]");
+  dataThumbnails.classed("selected", false);
+
+  d3.select(`canvas[data-dataset=user]`).classed("selected", true);
+  state.dataset = datasets["user"];
+  reset();
+  var str = d3.select("#data-load-button").property("value","");
+}
+
+function handleLoadData() {
+  var file;
+  if (this.files) {
+    file = this.files[0];
+  } else {
+    file = this.dataTransfer.files[0];
+  }
+
+  changeInputText();
+  let fileInputTextDiv = d3.select("#file_input_text_div");
+  if (d3.select("#file_input_text").text().length != 0) {
+    if (!fileInputTextDiv.classed("is-focused")) {
+      fileInputTextDiv.classed('is-focused',true);
+    }
+  } else {
+    if (fileInputTextDiv.classed("is-focused")) {
+      fileInputTextDiv.classed('is-focused',false);
+    }
+  }
+
+  var reader = new FileReader();
+  reader.readAsText(file);
+  reader.onload = readData;
+}
+
+function changeInputText() {
+  var str = d3.select("#data-load-button").property("value");
+  var i;
+  if (str.lastIndexOf('\\')) {
+    i = str.lastIndexOf('\\') + 1;
+  } else if (str.lastIndexOf('/')) {
+    i = str.lastIndexOf('/') + 1;
+  }
+  d3.select("#file_input_text").property("value",str.slice(i, str.length));
 }
 
 drawDatasetThumbnails();

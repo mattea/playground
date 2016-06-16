@@ -40,6 +40,7 @@ export let datasets: {[key: string]: dataset.DataGenerator} = {
   "xor": dataset.classifyXORData,
   "gauss": dataset.classifyTwoGaussData,
   "spiral": dataset.classifySpiralData,
+  "user": dataset.classifyUserData
 };
 
 /** A map between dataset names and functions that generate regression data. */
@@ -129,7 +130,7 @@ export class State {
     {name: "collectStats", type: Type.BOOLEAN},
     {name: "tutorial", type: Type.STRING},
     {name: "problem", type: Type.OBJECT, keyMap: problems},
-    {name: "initZero", type: Type.BOOLEAN}
+    {name: "initZero", type: Type.BOOLEAN},
   ];
 
   [key: string]: any;

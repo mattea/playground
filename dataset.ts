@@ -204,6 +204,12 @@ export function classifyXORData(numSamples: number, noise: number):
   return points;
 }
 
+export function classifyUserData(numSamples: number, noise: number):
+  Example2D[] {
+
+  return classifyTwoGaussData(numSamples, noise);
+}
+
 /**
  * Returns a sample from a uniform [a, b] distribution.
  * Uses the seedrandom library as the random generator.
