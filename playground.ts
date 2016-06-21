@@ -1088,11 +1088,18 @@ function readData() {
           {showAxes: true});
   heatMap.updatePoints(trainData);
   heatMap.updateTestPoints(state.showTestData ? testData : []);
-  let dataThumbnails = d3.selectAll("canvas[data-dataset]");
-  dataThumbnails.classed("selected", false);
 
-  d3.select(`canvas[data-dataset=user]`).classed("selected", true);
-  state.dataset = datasets["user"];
+  if (state.problem == Problem.CLASSIFICATION) {
+    let dataThumbnails = d3.selectAll("canvas[data-dataset]");
+    dataThumbnails.classed("selected", false);
+    d3.select(`canvas[data-dataset=user]`).classed("selected", true);
+    state.dataset = datasets["user"];
+  } else {
+    let dataThumbnails = d3.selectAll("canvas[data-regDataset]");
+    dataThumbnails.classed("selected", false);
+    d3.select(`canvas[data-regDataset=reg-user]`).classed("selected", true);
+    state.regDataset = datasets["reg-user"];
+  }
   reset();
   var str = d3.select("#data-load-button").property("value","");
 }

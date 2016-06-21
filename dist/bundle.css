@@ -1005,3 +1005,19 @@ footer .links a:hover {
 .none {
   display: none;
 }
+
+.file_input {
+  display: block;
+}
+
+#file_input_button_span {
+  padding-right: 5px;
+  padding-top: 20px;
+  display: block; float: left;
+}
+
+#file_input_text_div {
+  display: block;
+  overflow: hidden;
+  width: inherit;
+}

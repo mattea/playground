@@ -46,7 +46,8 @@ export let datasets: {[key: string]: dataset.DataGenerator} = {
 /** A map between dataset names and functions that generate regression data. */
 export let regDatasets: {[key: string]: dataset.DataGenerator} = {
   "reg-plane": dataset.regressPlane,
-  "reg-gauss": dataset.regressGaussian
+  "reg-gauss": dataset.regressGaussian,
+  "reg-user": dataset.classifyUserData
 };
 
 export function getKeyFromValue(obj: any, value: any): string {
