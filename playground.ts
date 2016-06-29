@@ -28,7 +28,7 @@ import {
   getKeyFromValue,
   Problem
 } from "./state";
-import {Example2D, shuffle} from "./dataset";
+import {Example2D, ExampleND, shuffle} from "./dataset";
 import {AppendingLineChart} from "./linechart";
 
 let mainWidth;
@@ -49,6 +49,30 @@ function scrollTween(offset) {
   };
 }
 
+function makeExample2D(inp: ExampleND): Example2D {
+  return {x: inp.input[xfeat], y: inp.input[yfeat], label: inp.label};
+};
+
+function make2D(inp: number[]): number[] {
+  return [inp[xfeat], inp[yfeat]];
+};
+
+function filledArray(length, val) {
+  var i, array = []; array.length = length; while(i < length) array[i++] = val;
+  return array;
+}
+
+function makeExampleND(inp: Example2D): ExampleND {
+  return {input: makeND([inp.x, inp.y]), label: inp.label};
+};
+
+function makeND(inp: number[]): number[] {
+  let input: number[] = filledArray(nfeat, 0);
+  input[xfeat] = inp[0];
+  input[yfeat] = inp[1];
+  return input;
+};
+
 const RECT_SIZE = 30;
 const BIAS_SIZE = 5;
 const NUM_SAMPLES_CLASSIFY = 500;
@@ -60,18 +84,18 @@ enum HoverType {
 }
 
 interface InputFeature {
-  f: (x: number, y: number) => number;
+  f: (i: number[]) => number;
   label?: string;
 }
 
 let INPUTS: {[name: string]: InputFeature} = {
-  "x": {f: (x, y) => x, label: "X_1"},
-  "y": {f: (x, y) => y, label: "X_2"},
-  "xSquared": {f: (x, y) => x * x, label: "X_1^2"},
-  "ySquared": {f: (x, y) => y * y,  label: "X_2^2"},
-  "xTimesY": {f: (x, y) => x * y, label: "X_1X_2"},
-  "sinX": {f: (x, y) => Math.sin(x), label: "sin(X_1)"},
-  "sinY": {f: (x, y) => Math.sin(y), label: "sin(X_2)"},
+  "x": {f: (i) => i[0], label: "X_1"},
+  "y": {f: (i) => i[1], label: "X_2"},
+  "xSquared": {f: (i) => i[xfeat] * i[xfeat], label: "X_1^2"},
+  "ySquared": {f: (i) => i[yfeat] * i[yfeat],  label: "X_2^2"},
+  "xTimesX_2": {f: (i) => i[xfeat] * i[yfeat], label: "X_1X_2"},
+  "sinX_1": {f: (i) => Math.sin(i[xfeat]), label: "sin(X_1)"},
+  "sinX_2": {f: (i) => Math.sin(i[yfeat]), label: "sin(X_2)"},
 };
 
 let HIDABLE_CONTROLS = [
@@ -154,6 +178,10 @@ let selectedNodeId: string = null;
 // Plot the heatmap.
 let xDomain: [number, number] = [-6, 6];
 let yDomain: [number, number] = [-6, 6];
+let minpoint: ExampleND = {input: [-6, -6],
+                          label: 0};
+let maxpoint: ExampleND = {input: [6, 6],
+                          label: 1};
 let heatMap =
     new HeatMap(300, DENSITY, xDomain, yDomain, d3.select("#heatmap"),
         {showAxes: true});
@@ -166,14 +194,17 @@ let colorScale = d3.scale.linear<string>()
                      .range(["#f59322", "#e8eaeb", "#0877bd"])
                      .clamp(true);
 let iter = 0;
-let trainData: Example2D[] = [];
-let testData: Example2D[] = [];
+let trainData: ExampleND[] = [];
+let testData: ExampleND[] = [];
 let network: nn.Node[][] = null;
 let lossTrain = 0;
 let lossTest = 0;
 let player = new Player();
 let lineChart = new AppendingLineChart(d3.select("#linechart"),
     ["#777", "black"]);
+let xfeat = 0;
+let yfeat = 1;
+let nfeat = 2;
 
 function makeGUI() {
   d3.select("#reset-button").on("click", () => {
@@ -260,7 +291,7 @@ function makeGUI() {
   let showTestData = d3.select("#show-test-data").on("change", function() {
     state.showTestData = this.checked;
     state.serialize();
-    heatMap.updateTestPoints(state.showTestData ? testData : []);
+    heatMap.updateTestPoints(state.showTestData ? testData.map(makeExample2D) : []);
   });
   // Check/uncheck the checkbox according to the current state.
   showTestData.property("checked", state.showTestData);
@@ -332,6 +363,22 @@ function makeGUI() {
     reset();
   });
   problem.property("value", getKeyFromValue(problems, state.problem));
+
+  let xFeat = d3.select("#xfeat").on("change", function() {
+    xfeat = this.value - 1;
+    updateHeatMap();
+    reset();
+  });
+  xFeat.property("value", xfeat + 1);
+
+  let yFeat = d3.select("#yfeat").on("change", function() {
+    yfeat = this.value - 1;
+    updateHeatMap();
+    reset();
+  });
+  yFeat.property("value", yfeat + 1);
+
+  resetFeatures();
 
   // Add scale to the gradient color map.
   let x = d3.scale.linear().domain([-1, 1]).range([0, 144]);
@@ -783,7 +830,7 @@ function updateDecisionBoundary(network: nn.Node[][], firstTime: boolean) {
       // 1 for points inside the circle, and 0 for points outside the circle.
       let x = xScale(i);
       let y = yScale(j);
-      let input = constructInput(x, y);
+      let input = constructInput(makeND([x, y]));
       nn.forwardProp(network, input);
       nn.forEachNode(network, true, node => {
         boundary[node.id][i][j] = node.output;
@@ -791,18 +838,18 @@ function updateDecisionBoundary(network: nn.Node[][], firstTime: boolean) {
       if (firstTime) {
         // Go through all predefined inputs.
         for (let nodeId in INPUTS) {
-          boundary[nodeId][i][j] = INPUTS[nodeId].f(x, y);
+          boundary[nodeId][i][j] = INPUTS[nodeId].f(makeND([x, y]));
         }
       }
     }
   }
 }
 
-function getLoss(network: nn.Node[][], dataPoints: Example2D[]): number {
+function getLoss(network: nn.Node[][], dataPoints: ExampleND[]): number {
   let loss = 0;
   for (let i = 0; i < dataPoints.length; i++) {
     let dataPoint = dataPoints[i];
-    let input = constructInput(dataPoint.x, dataPoint.y);
+    let input = constructInput(dataPoint.input);
     let output = nn.forwardProp(network, input);
     loss += nn.Errors.SQUARE.error(output, dataPoint.label);
   }
@@ -857,11 +904,11 @@ function constructInputIds(): string[] {
   return result;
 }
 
-function constructInput(x: number, y: number): number[] {
+function constructInput(i: number[]): number[] {
   let input: number[] = [];
   for (let inputName in INPUTS) {
     if (state[inputName]) {
-      input.push(INPUTS[inputName].f(x, y));
+      input.push(INPUTS[inputName].f(i));
     }
   }
   return input;
@@ -870,7 +917,7 @@ function constructInput(x: number, y: number): number[] {
 function oneStep(): void {
   iter++;
   trainData.forEach((point, i) => {
-    let input = constructInput(point.x, point.y);
+    let input = constructInput(point.input);
     nn.forwardProp(network, input);
     nn.backProp(network, point.label, nn.Errors.SQUARE);
     if ((i + 1) % state.batchSize === 0) {
@@ -909,7 +956,7 @@ function reset() {
 
   // Make a simple network.
   iter = 0;
-  let numInputs = constructInput(0 , 0).length;
+  let numInputs = constructInput([0 , 0]).length;
   let shape = [numInputs].concat(state.networkShape).concat([1]);
   let outputActivation = (state.problem == Problem.REGRESSION) ?
       nn.Activations.LINEAR : nn.Activations.TANH;
@@ -956,7 +1003,7 @@ function drawDatasetThumbnails() {
     canvas.setAttribute("height", h);
     let context = canvas.getContext("2d");
     let data = dataGenerator(200, 0);
-    data.forEach(function(d) {
+    data.map(makeExample2D).forEach(function(d) {
       context.fillStyle = colorScale(d.label);
       context.fillRect(w * (d.x + 6) / 12, h * (d.y + 6) / 12, 4, 4);
     });
@@ -1040,8 +1087,10 @@ function generateData(firstTime = false) {
   let splitIndex = Math.floor(data.length * state.percTrainData / 100);
   trainData = data.slice(0, splitIndex);
   testData = data.slice(splitIndex);
-  heatMap.updatePoints(trainData);
-  heatMap.updateTestPoints(state.showTestData ? testData : []);
+  minpoint = {input: [-6, -6], label: 0};
+  maxpoint = {input: [6, 6], label: 1};
+  resetFeatures();
+  updateHeatMap();
 }
 
 function handleDragOver() {
@@ -1050,16 +1099,24 @@ function handleDragOver() {
   this.dataTransfer.dropEffect = 'copy';
 }
 
+function storeMin(mina, newa) {
+  for (let el in mina) {
+    mina.input[el] = Math.min(mina.input[el],newa.input[el]);
+  }
+  mina.label = Math.min(mina.label,newa.label);
+}
+
+function storeMax(maxa, newa) {
+  for (let el in maxa) {
+    maxa.input[el] = Math.max(maxa.input[el],newa.input[el]);
+  }
+  maxa.label = Math.max(maxa.label,newa.label);
+}
+
 function readData() {
   var data = this.result.split('\n');
-  let points: Example2D[] = [];
+  let points: ExampleND[] = [];
   trainData = [];
-  let minpoint: Example2D = {x: Number.MAX_VALUE,
-                            y: Number.MAX_VALUE,
-                            label: Number.MAX_VALUE};
-  let maxpoint: Example2D = {x: Number.MIN_VALUE,
-                            y: Number.MIN_VALUE,
-                            label: Number.MIN_VALUE};
 
   for (var l in data) {
     if (data[l] == "" && trainData.length == 0) {
@@ -1067,27 +1124,23 @@ function readData() {
       points = [];
     }
     var elms = data[l].split(" ");
-    if (elms.length == 3) {
-      let point: Example2D = {x: parseFloat(elms[0]), y: parseFloat(elms[1]), label: parseFloat(elms[2])};
+    if (elms.length > 1) {
+      let point: ExampleND = {input: elms.slice(0,-1).map(parseFloat), label: parseFloat(elms[elms.length -1 ])};
+      if (trainData.length == 0 && points.length == 0) {
+        minpoint = {input: point.input.slice(0),
+                    label: point.label};
+        maxpoint = {input: point.input.slice(0),
+                    label: point.label};
+      }
       points.push(point);
 
-      minpoint.x = Math.min(minpoint.x, point.x);
-      minpoint.y = Math.min(minpoint.y, point.y);
-      minpoint.label = Math.min(minpoint.label, point.label);
-      maxpoint.x = Math.max(maxpoint.x, point.x);
-      maxpoint.y = Math.max(maxpoint.y, point.y);
-      maxpoint.label = Math.max(maxpoint.label, point.label);
+      storeMin(minpoint, point);
+      storeMax(maxpoint, point);
     }
   }
   testData = points;
-  xDomain = [Math.min(xDomain[0],minpoint.x), Math.max(xDomain[1],maxpoint.x)];
-  yDomain = [Math.min(yDomain[0],minpoint.y), Math.max(yDomain[1],maxpoint.y)];
-  d3.select("#heatmap").select("*").remove();
-  heatMap =
-      new HeatMap(300, DENSITY, xDomain, yDomain, d3.select("#heatmap"),
-          {showAxes: true});
-  heatMap.updatePoints(trainData);
-  heatMap.updateTestPoints(state.showTestData ? testData : []);
+  resetFeatures();
+  updateHeatMap();
 
   if (state.problem == Problem.CLASSIFICATION) {
     let dataThumbnails = d3.selectAll("canvas[data-dataset]");
@@ -1102,6 +1155,47 @@ function readData() {
   }
   reset();
   var str = d3.select("#data-load-button").property("value","");
+}
+
+function updateHeatMap() {
+  xDomain = [Math.min(-6,minpoint.input[xfeat]), Math.max(6,maxpoint.input[xfeat])];
+  yDomain = [Math.min(-6,minpoint.input[yfeat]), Math.max(6,maxpoint.input[yfeat])];
+  d3.select("#heatmap").select("*").remove();
+  heatMap = new HeatMap(300, DENSITY, xDomain, yDomain, d3.select("#heatmap"),
+              {showAxes: true});
+  heatMap.updatePoints(trainData.map(makeExample2D));
+  heatMap.updateTestPoints(state.showTestData ? testData.map(makeExample2D) : []);
+}
+
+function resetFeatures() {
+  if (nfeat > 2) {
+    d3.range(nfeat).forEach(function(num) {
+      delete INPUTS["x" + num];
+    });
+  }
+  nfeat = minpoint.input.length;
+  xfeat = 0;
+  yfeat = 1;
+  if (nfeat == 2) {
+    d3.select(".ui-xyfeat").style("display", "none");
+  } else {
+    let xselect = d3.select("#xfeat").html('');
+    let yselect = d3.select("#yfeat").html('');
+    d3.select(".ui-xyfeat").style("display", "");
+    d3.range(1, nfeat + 1).forEach(function(num) {
+      xselect.append("option")
+        .text(num)
+        .attr('value',num);
+      yselect.append("option")
+        .text(num)
+        .attr('value',num);
+      if (num > 2) {
+        INPUTS["x" + num] = {f: (i) => i[num - 1], label: "X_" + num};
+      }
+    });
+  }
+  d3.select("#xfeat").property("value", xfeat + 1);
+  d3.select("#yfeat").property("value", yfeat + 1);
 }
 
 function handleLoadData() {

@@ -21,6 +21,10 @@ export type Example2D = {
   y: number,
   label: number
 };
+export type ExampleND = {
+  input: number[],
+  label: number
+};
 
 type Point = {
   x: number,
@@ -48,11 +52,11 @@ export function shuffle(array: any[]): void {
   }
 }
 
-export type DataGenerator = (numSamples: number, noise: number) => Example2D[];
+export type DataGenerator = (numSamples: number, noise: number) => ExampleND[];
 
 export function classifyTwoGaussData(numSamples: number, noise: number):
-    Example2D[] {
-  let points: Example2D[] = [];
+    ExampleND[] {
+  let points: ExampleND[] = [];
 
   let varianceScale = d3.scale.linear().domain([0, .5]).range([0.5, 4]);
   let variance = varianceScale(noise);
@@ -61,7 +65,7 @@ export function classifyTwoGaussData(numSamples: number, noise: number):
     for (let i = 0; i < numSamples / 2; i++) {
       let x = normalRandom(cx, variance);
       let y = normalRandom(cy, variance);
-      points.push({x: x, y: y, label: label});
+      points.push({input: [x, y], label: label});
     }
   }
 
@@ -71,28 +75,28 @@ export function classifyTwoGaussData(numSamples: number, noise: number):
 }
 
 export function regressPlane(numSamples: number, noise: number):
-  Example2D[] {
+  ExampleND[] {
   let radius = 6;
   let labelScale = d3.scale.linear()
     .domain([-10, 10])
     .range([-1, 1]);
   let getLabel = (x, y) => labelScale(x + y);
 
-  let points: Example2D[] = [];
+  let points: ExampleND[] = [];
   for (let i = 0; i < numSamples; i++) {
     let x = randUniform(-radius, radius);
     let y = randUniform(-radius, radius);
     let noiseX = randUniform(-radius, radius) * noise;
     let noiseY = randUniform(-radius, radius) * noise;
     let label = getLabel(x + noiseX, y + noiseY);
-    points.push({x: x, y: y, label: label});
+    points.push({input: [x, y], label: label});
   }
   return points;
 }
 
 export function regressGaussian(numSamples: number, noise: number):
-  Example2D[] {
-  let points: Example2D[] = [];
+  ExampleND[] {
+  let points: ExampleND[] = [];
 
   let labelScale = d3.scale.linear()
     .domain([0, 2])
@@ -126,14 +130,14 @@ export function regressGaussian(numSamples: number, noise: number):
     let noiseX = randUniform(-radius, radius) * noise;
     let noiseY = randUniform(-radius, radius) * noise;
     let label = getLabel(x + noiseX, y + noiseY);
-    points.push({x: x, y: y, label: label});
+    points.push({input: [x, y], label: label});
   };
   return points;
 }
 
 export function classifySpiralData(numSamples: number, noise: number):
-    Example2D[] {
-  let points: Example2D[] = [];
+    ExampleND[] {
+  let points: ExampleND[] = [];
   let n = numSamples / 2;
 
   function genSpiral(deltaT: number, label: number) {
@@ -142,7 +146,7 @@ export function classifySpiralData(numSamples: number, noise: number):
       let t = 1.75 * i / n * 2 * Math.PI + deltaT;
       let x = r * Math.sin(t) + randUniform(-1, 1) * noise;
       let y = r * Math.cos(t) + randUniform(-1, 1) * noise;
-      points.push({x: x, y: y, label: label});
+      points.push({input: [x, y], label: label});
     }
   }
 
@@ -152,8 +156,8 @@ export function classifySpiralData(numSamples: number, noise: number):
 }
 
 export function classifyCircleData(numSamples: number, noise: number):
-    Example2D[] {
-  let points: Example2D[] = [];
+    ExampleND[] {
+  let points: ExampleND[] = [];
   let radius = 5;
   function getCircleLabel(p: Point, center: Point) {
     return (dist(p, center) < (radius * 0.5)) ? 1 : -1;
@@ -168,7 +172,7 @@ export function classifyCircleData(numSamples: number, noise: number):
     let noiseX = randUniform(-radius, radius) * noise;
     let noiseY = randUniform(-radius, radius) * noise;
     let label = getCircleLabel({x: x + noiseX, y: y + noiseY}, {x: 0, y: 0});
-    points.push({x: x, y: y, label: label});
+    points.push({input: [x, y], label: label});
   }
 
   // Generate negative points outside the circle.
@@ -180,16 +184,16 @@ export function classifyCircleData(numSamples: number, noise: number):
     let noiseX = randUniform(-radius, radius) * noise;
     let noiseY = randUniform(-radius, radius) * noise;
     let label = getCircleLabel({x: x + noiseX, y: y + noiseY}, {x: 0, y: 0});
-    points.push({x: x, y: y, label: label});
+    points.push({input: [x, y], label: label});
   }
   return points;
 }
 
 export function classifyXORData(numSamples: number, noise: number):
-    Example2D[] {
+    ExampleND[] {
   function getXORLabel(p: Point) { return p.x * p.y >= 0 ? 1 : -1; }
 
-  let points: Example2D[] = [];
+  let points: ExampleND[] = [];
   for (let i = 0; i < numSamples; i++) {
     let x = randUniform(-5, 5);
     let padding = 0.3;
@@ -199,13 +203,13 @@ export function classifyXORData(numSamples: number, noise: number):
     let noiseX = randUniform(-5, 5) * noise;
     let noiseY = randUniform(-5, 5) * noise;
     let label = getXORLabel({x: x + noiseX, y: y + noiseY});
-    points.push({x: x, y: y, label: label});
+    points.push({input: [x, y], label: label});
   }
   return points;
 }
 
 export function classifyUserData(numSamples: number, noise: number):
-  Example2D[] {
+  ExampleND[] {
 
   return classifyTwoGaussData(numSamples, noise);
 }

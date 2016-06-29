@@ -306,11 +306,11 @@ header h1 .optional {
   font-weight: 300;
 }
 
-#top-controls .control .select {
+.select {
   position: relative;
 }
 
-#top-controls .control select {
+.select select {
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;
@@ -326,11 +326,11 @@ header h1 .optional {
   outline: none;
 }
 
-#top-controls .control select:focus {
+.select select:focus {
   border-bottom-color: #183D4E;
 }
 
-#top-controls .control .select::after {
+.select::after {
   class: "material-icons";
   content: "arrow_drop_down";
   color: #999;
