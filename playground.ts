@@ -367,14 +367,16 @@ function makeGUI() {
   let xFeat = d3.select("#xfeat").on("change", function() {
     xfeat = this.value - 1;
     updateHeatMap();
-    reset();
+    drawNetwork(network);
+    updateUI(true);
   });
   xFeat.property("value", xfeat + 1);
 
   let yFeat = d3.select("#yfeat").on("change", function() {
     yfeat = this.value - 1;
     updateHeatMap();
-    reset();
+    drawNetwork(network);
+    updateUI(true);
   });
   yFeat.property("value", yfeat + 1);
 
@@ -462,7 +464,7 @@ function drawNode(cx: number, cy: number, nodeId: string, isInput: boolean,
       y: RECT_SIZE / 2, "text-anchor": "end"
     });
     if (/[_^]/.test(label)) {
-      let myRe = /(.*?)([_^])(.)/g;
+      let myRe = /(.*?)([_^])({[^}]+}|.)/g;
       let myArray;
       let lastIndex;
       while ((myArray = myRe.exec(label)) !== null) {
@@ -470,6 +472,9 @@ function drawNode(cx: number, cy: number, nodeId: string, isInput: boolean,
         let prefix = myArray[1];
         let sep = myArray[2];
         let suffix = myArray[3];
+        if (suffix.length > 1) {
+          suffix = suffix.substring(1,suffix.length-1)
+        }
         if (prefix) {
           text.append("tspan").text(prefix);
         }
@@ -1099,18 +1104,18 @@ function handleDragOver() {
   this.dataTransfer.dropEffect = 'copy';
 }
 
-function storeMin(mina, newa) {
-  for (let el in mina) {
-    mina.input[el] = Math.min(mina.input[el],newa.input[el]);
+function storeMin(minpoint, newpoint) {
+  for (let el in minpoint.input) {
+    minpoint.input[el] = Math.min(minpoint.input[el],newpoint.input[el]);
   }
-  mina.label = Math.min(mina.label,newa.label);
+  minpoint.label = Math.min(minpoint.label,newpoint.label);
 }
 
-function storeMax(maxa, newa) {
-  for (let el in maxa) {
-    maxa.input[el] = Math.max(maxa.input[el],newa.input[el]);
+function storeMax(maxpoint, newpoint) {
+  for (let el in maxpoint.input) {
+    maxpoint.input[el] = Math.max(maxpoint.input[el],newpoint.input[el]);
   }
-  maxa.label = Math.max(maxa.label,newa.label);
+  maxpoint.label = Math.max(maxpoint.label,newpoint.label);
 }
 
 function readData() {
@@ -1123,7 +1128,7 @@ function readData() {
       trainData = points;
       points = [];
     }
-    var elms = data[l].split(" ");
+    var elms = data[l].split(/[ \t,]/);
     if (elms.length > 1) {
       let point: ExampleND = {input: elms.slice(0,-1).map(parseFloat), label: parseFloat(elms[elms.length -1 ])};
       if (trainData.length == 0 && points.length == 0) {
@@ -1139,6 +1144,21 @@ function readData() {
     }
   }
   testData = points;
+
+  if (testData.length == 0) {
+    let splitIndex = Math.floor(trainData.length * state.percTrainData / 100);
+    testData = trainData.slice(splitIndex);
+    trainData = trainData.slice(0, splitIndex);
+  }
+
+  for (var p in trainData) {
+    trainData[p].label = ((trainData[p].label - minpoint.label) / (maxpoint.label - minpoint.label)) * 2 - 1;
+  }
+  for (var p in testData) {
+    testData[p].label = ((testData[p].label - minpoint.label) / (maxpoint.label - minpoint.label)) * 2 - 1;
+  }
+  minpoint.label = -1;
+  maxpoint.label = 1;
   resetFeatures();
   updateHeatMap();
 
@@ -1158,13 +1178,19 @@ function readData() {
 }
 
 function updateHeatMap() {
-  xDomain = [Math.min(-6,minpoint.input[xfeat]), Math.max(6,maxpoint.input[xfeat])];
-  yDomain = [Math.min(-6,minpoint.input[yfeat]), Math.max(6,maxpoint.input[yfeat])];
+  //xDomain = [Math.min(-6,minpoint.input[xfeat]), Math.max(6,maxpoint.input[xfeat])];
+  //yDomain = [Math.min(-6,minpoint.input[yfeat]), Math.max(6,maxpoint.input[yfeat])];
+  xDomain = [minpoint.input[xfeat] - 0.5, maxpoint.input[xfeat] + 0.5];
+  yDomain = [minpoint.input[yfeat] - 0.5, maxpoint.input[yfeat] + 0.5];
   d3.select("#heatmap").select("*").remove();
   heatMap = new HeatMap(300, DENSITY, xDomain, yDomain, d3.select("#heatmap"),
               {showAxes: true});
   heatMap.updatePoints(trainData.map(makeExample2D));
   heatMap.updateTestPoints(state.showTestData ? testData.map(makeExample2D) : []);
+}
+
+function getterFn(ind: number): (i: number[]) => number {
+  return i => i[ind];
 }
 
 function resetFeatures() {
@@ -1190,7 +1216,7 @@ function resetFeatures() {
         .text(num)
         .attr('value',num);
       if (num > 2) {
-        INPUTS["x" + num] = {f: (i) => i[num - 1], label: "X_" + num};
+        INPUTS["x" + num] = {f: getterFn(num - 1), label: "X_{" + num + "}"};
       }
     });
   }
